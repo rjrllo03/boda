@@ -4,6 +4,8 @@ import { firebaseConfig, USUARIO } from "./config.js";
 
 const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
 const COL = "invitados";
+const SES = "sesiones";
+const nameId = (n) => String(n).trim().replace(/\//g, "-") || "_";
 
 export const isDemo = !firebaseConfig.apiKey;
 
@@ -24,8 +26,33 @@ async function createFirebaseStore() {
     localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }),
   });
   const col = fs.collection(db, COL);
+  const ses = fs.collection(db, SES);
 
   return {
+    // ----- Nombres apartados: un nombre = un teléfono -----
+    watchNames(cb) {
+      return fs.onSnapshot(ses, (snap) => {
+        const m = {};
+        snap.docs.forEach((d) => { const x = d.data(); m[x.nombre || d.id] = x; });
+        cb(m, { fromCache: snap.metadata.fromCache });
+      }, () => {});
+    },
+    // Transacción: si otro teléfono ya lo tiene, falla con code "ocupado".
+    async claimName(nombre, device) {
+      const ref = fs.doc(ses, nameId(nombre));
+      await fs.runTransaction(db, async (t) => {
+        const s = await t.get(ref);
+        if (s.exists() && s.data().device !== device) throw Object.assign(new Error("ocupado"), { code: "ocupado" });
+        t.set(ref, { nombre, device, desde: s.exists() ? s.data().desde : Date.now() });
+      });
+    },
+    // device = null → liberar a la fuerza (desde ⚙).
+    async releaseName(nombre, device) {
+      const ref = fs.doc(ses, nameId(nombre));
+      if (device) { const s = await fs.getDoc(ref); if (!s.exists() || s.data().device !== device) return; }
+      await fs.deleteDoc(ref);
+    },
+
     get loggedIn() { return !!user; },
     async login(password) {
       const cred = await au.signInWithEmailAndPassword(auth, USUARIO, password);
@@ -88,11 +115,30 @@ function createLocalStore() {
     emit(); chan?.postMessage("x");
   };
   const emit = () => listeners.forEach((cb) => cb(read(), {}));
-  chan && (chan.onmessage = emit);
+  chan && chan.addEventListener("message", emit);
   window.addEventListener("storage", (e) => e.key === KEY && emit());
   const patch = (id, p) => write(read().map((r) => (r.id === id ? { ...r, ...p } : r)));
+  // Nombres apartados (demo): compartidos entre pestañas de este navegador.
+  const SKEY = "boda-demo-sesiones";
+  const nameL = new Set();
+  const readS = () => { try { return JSON.parse(localStorage.getItem(SKEY)) || {}; } catch { return {}; } };
+  const writeS = (m) => { try { localStorage.setItem(SKEY, JSON.stringify(m)); } catch {} emitS(); chan?.postMessage("s"); };
+  const emitS = () => nameL.forEach((cb) => cb(readS(), {}));
+  chan && chan.addEventListener("message", emitS);
+  window.addEventListener("storage", (e) => e.key === SKEY && emitS());
 
   return {
+    watchNames(cb) { nameL.add(cb); cb(readS(), {}); return () => nameL.delete(cb); },
+    async claimName(nombre, device) {
+      const m = readS();
+      if (m[nombre] && m[nombre].device !== device) throw Object.assign(new Error("ocupado"), { code: "ocupado" });
+      m[nombre] = { nombre, device, desde: m[nombre]?.desde || Date.now() }; writeS(m);
+    },
+    async releaseName(nombre, device) {
+      const m = readS();
+      if (!m[nombre] || (device && m[nombre].device !== device)) return;
+      delete m[nombre]; writeS(m);
+    },
     loggedIn: true,
     async login() {},
     async logout() {},

@@ -49,21 +49,67 @@ function pintarQuien() {
   $("#quienSoy").textContent = quien ? `Entregando: ${quien}` : "Elegir quién entrega";
   $("#quienSoy").disabled = !!quien;
 }
-function pedirQuien() {
-  $("#entregadores").innerHTML = ENTREGADORES.map((n) => `<button value="${esc(n)}">${esc(n)}</button>`).join("");
-  $("#otroNombre").value = "";
-  $("#dlgQuien").showModal();
+// Cada nombre sólo puede estar en un teléfono a la vez (se aparta en Firebase).
+let device = ls.get("boda-device");
+if (!device) { device = Math.random().toString(36).slice(2) + Date.now().toString(36); ls.set("boda-device", device); }
+let ocupados = {};       // nombre → { device, desde }
+let apartado = false;    // true cuando ya confirmamos que el nombre es de este teléfono
+const enOtro = (n) => ocupados[n] && ocupados[n].device !== device;
+
+function pintarBotonesQuien() {
+  $("#entregadores").innerHTML = ENTREGADORES.map((n) => enOtro(n)
+    ? `<button type="button" disabled>${esc(n)}<small>en uso</small></button>`
+    : `<button value="${esc(n)}">${esc(n)}</button>`).join("");
 }
-$("#dlgQuien").addEventListener("close", () => {
+function pedirQuien() {
+  pintarBotonesQuien();
+  $("#otroNombre").value = "";
+  $("#dlgQuien").returnValue = "";
+  if (!$("#dlgQuien").open) $("#dlgQuien").showModal();
+}
+function soltarQuien() { quien = ""; apartado = false; try { localStorage.removeItem("boda-quien"); } catch {} pintarQuien(); }
+
+async function apartar(nombre) {
+  try {
+    await store.claimName(nombre, device);
+    quien = nombre; apartado = true; ls.set("boda-quien", quien); pintarQuien();
+    return true;
+  } catch (ex) {
+    await avisar(ex.code === "ocupado"
+      ? `"${nombre}" ya está en uso en otro teléfono. Elige otro nombre o pide que liberen ese nombre en ⚙.`
+      : /permission/i.test(ex.code || ex.message) ? "Firebase no dejó apartar el nombre: falta actualizar las reglas (colección «sesiones»)."
+      : "No se pudo apartar el nombre (¿hay internet?). Intenta de nuevo.");
+    return false;
+  }
+}
+
+$("#dlgQuien").addEventListener("close", async () => {
   const v = $("#dlgQuien").returnValue;
-  const nombre = v === "otro" ? $("#otroNombre").value.trim() : v;
-  if (nombre) { quien = nombre; ls.set("boda-quien", quien); }
-  pintarQuien();
-  if (!quien) setTimeout(pedirQuien, 50);
+  const nombre = (v === "otro" ? $("#otroNombre").value.trim() : v) || "";
+  if (!nombre || !(await apartar(nombre))) setTimeout(pedirQuien, 50);
 });
 $("#quienSoy").onclick = () => { if (!quien) pedirQuien(); };
+
+store.watchNames((m, meta) => {
+  ocupados = m || {};
+  if ($("#dlgQuien").open) pintarBotonesQuien();
+  pintarNombresAdmin();
+  // Si liberaron mi nombre desde ⚙ (o lo tomó otro teléfono), pedir nombre otra vez.
+  if (apartado && quien && !meta.fromCache && (!ocupados[quien] || enOtro(quien))) {
+    soltarQuien();
+    avisar("Tu nombre fue liberado desde otro teléfono. Elige tu nombre otra vez.").then(pedirQuien);
+  }
+});
+
 pintarQuien();
-if (!quien) pedirQuien();
+if (quien) {
+  // Ya tenía nombre guardado: confirmar que sigue siendo de este teléfono.
+  store.claimName(quien, device).then(() => { apartado = true; }).catch((ex) => {
+    if (ex.code !== "ocupado") return; // sin internet: seguimos con el nombre guardado
+    const n = quien; soltarQuien();
+    avisar(`"${n}" ya está en uso en otro teléfono. Elige tu nombre.`).then(pedirQuien);
+  });
+} else pedirQuien();
 
 // ---------- Datos en vivo ----------
 store.subscribe((data, meta) => {
@@ -178,7 +224,7 @@ function ask(msg, { input = false, ok = "Aceptar", cancel = "Cancelar", danger =
     if (input) inp.focus();
   });
 }
-const avisar = (msg) => ask(msg, { cancel: false });
+function avisar(msg) { return ask(msg, { cancel: false }); }
 
 // ---------- Toast ----------
 let toastT;
@@ -243,9 +289,28 @@ $("#btnImport").onclick = async () => {
 
 $("#btnLogout").onclick = async () => {
   if (!await ask("¿Cerrar sesión en este teléfono? Se pedirá la contraseña y el nombre otra vez.", { ok: "Cerrar sesión" })) return;
+  if (quien) { try { await store.releaseName(quien, device); } catch {} }
   try { localStorage.removeItem("boda-quien"); } catch {}
   await store.logout(); location.reload();
 };
+
+// ---------- Nombres en uso (⚙) ----------
+function pintarNombresAdmin() {
+  const box = $("#nombresUso");
+  if (!box) return;
+  const lista = Object.entries(ocupados);
+  box.innerHTML = lista.length ? lista.map(([n, x]) => `<div class="uso">
+      <span><strong>${esc(n)}</strong>${x.device === device ? " (este teléfono)" : ""}<br><small>desde ${hora(x.desde)}</small></span>
+      <button type="button" class="ghost danger" data-liberar="${esc(n)}">Liberar</button></div>`).join("")
+    : `<p class="muted">Ningún nombre en uso.</p>`;
+}
+$("#nombresUso").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-liberar]");
+  if (!b) return;
+  const n = b.dataset.liberar;
+  if (!await ask(`¿Liberar "${n}"? El teléfono que lo usa tendrá que elegir nombre otra vez.`, { ok: "Liberar", danger: true })) return;
+  try { await store.releaseName(n, null); toast(`"${n}" liberado`); } catch (err) { avisar("Error: " + err.message); }
+});
 
 $("#btnReset").onclick = async () => {
   if (!await ask("¿Desmarcar TODAS las entregas? La lista se queda igual.", { ok: "Sí, desmarcar", danger: true })) return;
