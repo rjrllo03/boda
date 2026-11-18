@@ -1,5 +1,8 @@
-import { ENTREGADORES, ADMIN_PIN, TITULO } from "./config.js";
-import { createStore, isDemo } from "./store.js";
+// La versión (?v=...) viene de index.html y se pasa a los demás archivos para que
+// el navegador / Cloudflare nunca use una copia vieja después de publicar.
+const V = new URL(import.meta.url).search;
+const { ENTREGADORES, ADMIN_PIN, TITULO } = await import("./config.js" + V);
+const { createStore, isDemo } = await import("./store.js" + V);
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

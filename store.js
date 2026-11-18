@@ -1,6 +1,6 @@
 // Capa de datos: Firebase Firestore (compartido en tiempo real)
 // o modo demo local (localStorage) si no hay configuración.
-import { firebaseConfig, USUARIO } from "./config.js";
+const { firebaseConfig, USUARIO } = await import("./config.js" + new URL(import.meta.url).search);
 
 const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
 const COL = "invitados";
