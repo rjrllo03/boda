@@ -16,6 +16,19 @@ let filtro = "pend";
 let quien = ls.get("boda-quien") || "";
 let actual = null;
 
+// ---------- Tipos de sobre ----------
+const SOBRES = {
+  oro:    { label: "Oro",    desc: "Portarretrato + Jabón + Merch" },
+  feliz:  { label: "Feliz",  desc: "Jabón + Merch" },
+  merch:  { label: "Merch",  desc: "Merch" },
+  nino:   { label: "Niño",   desc: "Sobre de niño" },
+  blanco: { label: "Blanco", desc: "Sobre de hombre" },
+};
+const ORDEN_SOBRES = Object.keys(SOBRES);
+const tipoDe = (r) => SOBRES[r.sobre] ? r.sobre : (r.jefe ? "oro" : "merch");
+const badgeDe = (r) => { const t = tipoDe(r); return `<span class="badge s-${t}">${SOBRES[t].label.toUpperCase()}</span>`; };
+
+
 document.title = TITULO;
 $("#titulo").textContent = TITULO;
 $("#demo").hidden = !isDemo;
@@ -125,14 +138,16 @@ window.addEventListener("offline", () => { $("#estado").className = "estado off"
 
 // ---------- Render ----------
 function render() {
-  const jefes = rows.filter((r) => r.jefe), otros = rows.filter((r) => !r.jefe);
   const cnt = (a) => a.filter((r) => r.entregado).length;
-  $("#statSobres").textContent = `${cnt(jefes)}/${jefes.length}`;
-  $("#statFolders").textContent = `${cnt(otros)}/${otros.length}`;
-  $("#statTotal").textContent = rows.length ? Math.round((cnt(rows) / rows.length) * 100) + "%" : "0%";
+  const tiles = ORDEN_SOBRES.map((t) => {
+    const de = rows.filter((r) => tipoDe(r) === t);
+    return de.length ? `<div class="stat"><span class="stat-n">${cnt(de)}/${de.length}</span><span class="stat-l"><i class="dot s-${t}"></i>${SOBRES[t].label}</span></div>` : "";
+  }).join("");
+  $("#stats").innerHTML = tiles +
+    `<div class="stat"><span class="stat-n">${rows.length ? Math.round((cnt(rows) / rows.length) * 100) : 0}%</span><span class="stat-l">Total ${cnt(rows)}/${rows.length}</span></div>`;
 
   const q = norm($("#buscar").value.trim());
-  const fams = new Map();
+  const fams = new Map(); // en el orden de la lista; familias con el mismo nombre se juntan
   [...rows]
     .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
     .forEach((r) => { if (!fams.has(r.familia)) fams.set(r.familia, []); fams.get(r.familia).push(r); });
@@ -144,10 +159,10 @@ function render() {
     if (filtro === "pend") vis = vis.filter((r) => !r.entregado);
     if (filtro === "ent") vis = vis.filter((r) => r.entregado);
     if (!vis.length) continue;
-    vis.sort((a, b) => (b.jefe - a.jefe) || (a.orden ?? 0) - (b.orden ?? 0));
     const mesa = gente.find((r) => r.mesa)?.mesa;
+    const resumen = ORDEN_SOBRES.map((t) => { const n = gente.filter((r) => tipoDe(r) === t).length; return n ? `${n} ${SOBRES[t].label}` : ""; }).filter(Boolean).join(" · ");
     html += `<section class="familia">
-      <div class="familia-h"><strong>${esc(fam)}</strong><span>${mesa ? "Mesa " + esc(mesa) + " · " : ""}${cnt(gente)}/${gente.length}</span></div>
+      <div class="familia-h"><div><strong>${esc(fam)}</strong><small>${resumen}</small></div><span>${mesa ? "Mesa " + esc(mesa) + " · " : ""}${cnt(gente)}/${gente.length}</span></div>
       ${vis.map(persona).join("")}
     </section>`;
   }
@@ -155,17 +170,18 @@ function render() {
 }
 
 function persona(r) {
-  const badge = r.jefe ? `<span class="badge sobre">SOBRE</span>` : `<span class="badge folder">FOLDER</span>`;
+  const t = tipoDe(r), badge = badgeDe(r);
+  const g = t === "blanco" ? "g-hombre" : t === "nino" ? "g-nino" : "g-mujer"; // color de la fila
   if (r.entregado) {
     const rec = r.recibidoPor && norm(r.recibidoPor) !== norm(r.nombre) ? ` · recibió ${esc(r.recibidoPor)}` : "";
-    return `<div class="persona hecho ${r.jefe ? "jefe" : ""}">
+    return `<div class="persona hecho ${g}">
       <div class="info"><div class="nombre">✓ ${esc(r.nombre)} ${badge}</div>
       <div class="meta">${esc(r.entregadoPor)} · ${hora(r.hora)}${rec}${r._pendiente ? ' · <span class="sync">sincronizando…</span>' : ""}</div></div>
       <button class="btn-undo" data-undo="${esc(r.id)}">Deshacer</button></div>`;
   }
-  return `<div class="persona ${r.jefe ? "jefe" : ""}">
+  return `<div class="persona ${g}">
     <div class="info"><div class="nombre">${esc(r.nombre)} ${badge}</div>
-    <div class="meta">${r.jefe ? "Jefe de familia" : "Familiar"}</div></div>
+    <div class="meta">${SOBRES[t].desc}</div></div>
     <button class="btn-ent" data-ent="${esc(r.id)}">Entregar</button></div>`;
 }
 
@@ -184,7 +200,8 @@ $("#lista").addEventListener("click", async (e) => {
     if (!actual) return;
     $("#entFamilia").textContent = actual.familia;
     $("#entNombre").textContent = actual.nombre;
-    $("#entTipo").textContent = actual.jefe ? "Entregar SOBRE (jefe de familia)" : "Entregar FOLDER";
+    const t = tipoDe(actual);
+    $("#entTipo").innerHTML = `Entregar sobre ${badgeDe(actual)}<br><small class="muted">${SOBRES[t].desc}</small>`;
     $("#entRecibio").value = actual.nombre;
     $("#dlgEntregar").returnValue = "";
     $("#dlgEntregar").showModal();
@@ -248,44 +265,98 @@ $("#btnAdmin").onclick = async () => {
   $("#dlgAdmin").showModal();
 };
 
+// Acepta dos formatos:
+//  A) Tu tabla: # ; Familia ; Nombre ; Portaretrato ; Jabon ; Merch   (con fila de encabezados)
+//     → Oro (los 3) · Feliz (jabón + merch) · Merch (sólo merch).
+//     Si el encabezado de la columna de familia dice "Hombres" → Blanco; "Niños" → Niño.
+//  B) Simple: Familia ; Nombre ; Sobre (Oro/Feliz/Merch/Niño/Blanco) ; Mesa (opcional)
+const sinAcento = (s) => norm(s).trim();
+const esSi = (v) => /^(si|sí|x|1|true|yes)$/i.test(String(v || "").trim());
+function tipoTexto(v) {
+  const s = sinAcento(v);
+  if (s.startsWith("oro")) return "oro";
+  if (s.startsWith("feliz")) return "feliz";
+  if (s.startsWith("merch")) return "merch";
+  if (s.startsWith("nin")) return "nino";
+  if (s.startsWith("blanc") || s.startsWith("hombre")) return "blanco";
+  return "";
+}
 function parse(text) {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
   const sep = lines.some((l) => l.includes("\t")) ? "\t" : lines.some((l) => l.includes(";")) ? ";" : ",";
-  let data = lines.map((l) => l.split(sep).map((c) => c.trim().replace(/^"|"$/g, "")));
-  if (data.length && /familia/i.test(data[0][0]) && /nombre/i.test(data[0][1] || "")) data.shift(); // encabezados
-  const tieneJefe = data.some((c) => c[2] && /^(s[ií]|si|yes|x|1|true|jefe|no|0|false)$/i.test(c[2]));
-  const vistos = new Set();
-  return data.filter((c) => c[0] && c[1]).map((c, i) => {
-    let jefe;
-    if (tieneJefe) jefe = /^(s[ií]|si|yes|x|1|true|jefe)$/i.test(c[2] || "");
-    else { jefe = !vistos.has(c[0]); vistos.add(c[0]); }
-    return { familia: c[0], nombre: c[1], jefe, mesa: c[3] || "", orden: i };
-  });
+  const data = lines.map((l) => l.split(sep).map((c) => c.trim().replace(/^"|"$/g, "").trim()));
+
+  // ¿Formato A? Buscar fila de encabezados con Portaretrato/Jabon/Merch
+  const hi = data.findIndex((c) => c.some((x) => /merch/i.test(x)) && c.some((x) => /jab/i.test(x)));
+  if (hi >= 0) {
+    const h = data[hi].map(sinAcento);
+    const P = h.findIndex((x) => x.startsWith("porta")), J = h.findIndex((x) => x.startsWith("jab")), M = h.findIndex((x) => x.startsWith("merch"));
+    const N = Math.min(...[P, J, M].filter((i) => i >= 0)) - 1, F = N - 1;
+    const grupo = h[F] || "";
+    const fijo = /hombre/.test(grupo) ? "blanco" : /nin/.test(grupo) ? "nino" : "";
+    const out = [];
+    data.slice(hi + 1).forEach((c) => {
+      const familia = c[F], nombre = c[N];
+      if (!familia || !nombre) return;
+      let sobre = fijo;
+      if (!sobre) {
+        const p = esSi(c[P]), j = esSi(c[J]), m = esSi(c[M]);
+        sobre = p && j && m ? "oro" : j && m ? "feliz" : m ? "merch" : p || j ? "oro" : "merch";
+      }
+      out.push({ familia, nombre, sobre, numero: c[0] || "", mesa: "", orden: out.length });
+    });
+    return out;
+  }
+
+  // Formato B
+  let rows2 = data;
+  if (rows2.length && /familia/i.test(rows2[0][0]) && /nombre/i.test(rows2[0][1] || "")) rows2 = rows2.slice(1);
+  return rows2.filter((c) => c[0] && c[1]).map((c, i) => ({
+    familia: c[0], nombre: c[1], sobre: tipoTexto(c[2]) || "merch", numero: "", mesa: c[3] || "", orden: i,
+  }));
+}
+
+function resumenImport(p) {
+  const fams = new Set(p.map((r) => r.familia)).size;
+  const porTipo = ORDEN_SOBRES.map((t) => { const n = p.filter((r) => r.sobre === t).length; return n ? `${SOBRES[t].label} ${n}` : ""; }).filter(Boolean).join(" · ");
+  return `${p.length} personas · ${fams} familias · ${porTipo}`;
 }
 
 $("#csv").addEventListener("input", () => {
   const p = parse($("#csv").value);
-  const fams = new Set(p.map((r) => r.familia)).size;
-  $("#preview").textContent = p.length ? `${p.length} invitados · ${fams} familias · ${p.filter((r) => r.jefe).length} sobres` : "";
+  $("#preview").textContent = p.length ? resumenImport(p) : "";
 });
 
-$("#btnEjemplo").onclick = () => {
-  $("#csv").value = [
-    "Familia García\tJuan García\tsí\t1", "Familia García\tAna López\tno\t1", "Familia García\tSofía García\tno\t1",
-    "Familia Pérez\tLuis Pérez\tsí\t2", "Familia Pérez\tMarta Ruiz\tno\t2",
-    "Familia Hernández\tCarlos Hernández\tsí\t3", "Familia Hernández\tLucía Hernández\tno\t3",
-    "Familia Hernández\tDiego Hernández\tno\t3", "Familia Hernández\tElena Torres\tno\t3",
-  ].join("\n");
+// Subir el archivo .csv directo (Excel en Mac a veces lo guarda en otra codificación)
+$("#csvFile").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const buf = await f.arrayBuffer();
+  let txt = new TextDecoder("utf-8").decode(buf);
+  if (txt.includes("�")) txt = new TextDecoder("windows-1252").decode(buf);
+  $("#csv").value = txt.replace(/^﻿/, "");
   $("#csv").dispatchEvent(new Event("input"));
-};
+  e.target.value = "";
+});
 
-$("#btnImport").onclick = async () => {
+async function importar(modo) {
   const p = parse($("#csv").value);
   if (!p.length) return avisar("No encontré invitados. Revisa el formato.");
-  if (!await ask(`Esto BORRA la lista actual (y sus entregas) y carga ${p.length} invitados. ¿Continuar?`, { ok: "Sí, reemplazar", danger: true })) return;
-  try { await store.replaceAll(p); toast(`Lista cargada: ${p.length} invitados`); $("#csv").value = ""; $("#preview").textContent = ""; }
-  catch (err) { avisar("Error: " + err.message); }
-};
+  const msg = modo === "reemplazar"
+    ? `Esto BORRA la lista actual (y sus entregas) y carga: ${resumenImport(p)}. ¿Continuar?`
+    : `Se AGREGAN a la lista actual: ${resumenImport(p)}. Las familias con el mismo nombre se juntan. ¿Continuar?`;
+  if (!await ask(msg, { ok: modo === "reemplazar" ? "Sí, reemplazar" : "Sí, agregar", danger: modo === "reemplazar" })) return;
+  try {
+    if (modo === "reemplazar") await store.replaceAll(p);
+    else {
+      const base = rows.reduce((m, r) => Math.max(m, r.orden ?? 0), -1) + 1;
+      await store.addRows(p.map((r, i) => ({ ...r, orden: base + i })));
+    }
+    toast(`Listo: ${p.length} personas`); $("#csv").value = ""; $("#preview").textContent = "";
+  } catch (err) { avisar("Error: " + err.message); }
+}
+$("#btnImport").onclick = () => importar("reemplazar");
+$("#btnAgregar").onclick = () => importar("agregar");
 
 $("#btnLogout").onclick = async () => {
   if (!await ask("¿Cerrar sesión en este teléfono? Se pedirá la contraseña y el nombre otra vez.", { ok: "Cerrar sesión" })) return;
@@ -318,10 +389,10 @@ $("#btnReset").onclick = async () => {
 };
 
 $("#btnExport").onclick = () => {
-  const head = ["Familia", "Nombre", "Tipo", "Entregado", "Entregó", "Recibió", "Hora"];
+  const head = ["Familia", "Nombre", "Sobre", "Entregado", "Entregó", "Recibió", "Hora"];
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const body = [...rows].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0)).map((r) =>
-    [r.familia, r.nombre, r.jefe ? "Sobre" : "Folder", r.entregado ? "Sí" : "No", r.entregadoPor, r.recibidoPor, r.hora ? new Date(r.hora).toLocaleString("es-MX") : ""].map(q).join(","));
+    [r.familia, r.nombre, SOBRES[tipoDe(r)].label, r.entregado ? "Sí" : "No", r.entregadoPor, r.recibidoPor, r.hora ? new Date(r.hora).toLocaleString("es-MX") : ""].map(q).join(","));
   const blob = new Blob(["﻿" + [head.join(","), ...body].join("\n")], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = "registro-regalos.csv"; a.click();

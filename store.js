@@ -92,6 +92,13 @@ async function createFirebaseStore() {
         await batch.commit();
       }
     },
+    async addRows(rows) {
+      for (let i = 0; i < rows.length; i += 400) {
+        const batch = fs.writeBatch(db);
+        rows.slice(i, i + 400).forEach((r) => batch.set(fs.doc(col), blank(r)));
+        await batch.commit();
+      }
+    },
     async resetDeliveries() {
       const snap = await fs.getDocs(col);
       for (let i = 0; i < snap.docs.length; i += 400) {
@@ -146,13 +153,15 @@ function createLocalStore() {
     async deliver(id, por, recibio) { patch(id, { entregado: true, entregadoPor: por, recibidoPor: recibio || "", hora: Date.now() }); },
     async undo(id) { patch(id, { entregado: false, entregadoPor: "", recibidoPor: "", hora: 0 }); },
     async replaceAll(rows) { write(rows.map((r, i) => ({ id: "d" + i + "-" + Date.now(), ...blank(r) }))); },
+    async addRows(rows) { write([...read(), ...rows.map((r, i) => ({ id: "a" + i + "-" + Date.now(), ...blank(r) }))]); },
     async resetDeliveries() { write(read().map((r) => ({ ...r, entregado: false, entregadoPor: "", recibidoPor: "", hora: 0 }))); },
   };
 }
 
 function blank(r) {
   return {
-    familia: r.familia, nombre: r.nombre, jefe: !!r.jefe, orden: r.orden ?? 0, mesa: r.mesa || "",
+    familia: String(r.familia).trim(), nombre: String(r.nombre).trim(), sobre: r.sobre || "merch",
+    numero: r.numero || "", orden: r.orden ?? 0, mesa: r.mesa || "",
     entregado: false, entregadoPor: "", recibidoPor: "", hora: 0,
   };
 }

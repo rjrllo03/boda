@@ -71,8 +71,24 @@ h2 { font: 600 1.5rem/1.2 "Cormorant Garamond", serif; margin: 0 0 6px; }
 .persona .nombre { font-weight: 500; }
 .persona .meta { font-size: .8rem; color: var(--muted); }
 .badge { display: inline-block; font-size: .7rem; font-weight: 600; letter-spacing: .02em; padding: 2px 7px; border-radius: 999px; margin-left: 4px; vertical-align: 1px; }
-.badge.sobre { background: var(--accent-soft); color: var(--accent); }
-.badge.folder { background: #eeeae5; color: var(--muted); }
+/* Tipos de sobre */
+.s-oro    { background: #f2dfa7; color: #6e500c; }
+.s-feliz  { background: #f9d9e2; color: #9b3553; }
+.s-merch  { background: #e4ded6; color: #574f46; }
+.s-nino   { background: #f6e08a; color: #6b5300; }
+
+/* Color de fila: mujeres rosa · hombres azul · niños amarillo */
+.persona.g-mujer  { background: #fdecf1; }
+.persona.g-hombre { background: #e6f0fb; }
+.persona.g-nino   { background: #fdf5d3; }
+/* Entregado: se queda el color pero se ve "apagado" con palomita verde */
+.persona.hecho { opacity: .6; }
+.persona.hecho .nombre { color: var(--ok); }
+.s-blanco { background: #ffffff; color: #574f46; box-shadow: inset 0 0 0 1px #cbc1b5; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+.familia-h small { display: block; font-size: .75rem; color: var(--muted); margin-top: 1px; }
+.file { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; margin: 4px 0 2px; font-size: .95rem; }
+.tipo .badge { font-size: .85rem; padding: 3px 10px; }
 .persona.hecho { background: var(--ok-soft); }
 .persona.hecho .nombre { color: var(--ok); }
 .btn-ent {

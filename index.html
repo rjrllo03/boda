@@ -24,11 +24,7 @@
       </div>
     </div>
 
-    <div class="stats">
-      <div class="stat"><span class="stat-n" id="statSobres">0/0</span><span class="stat-l">Sobres (jefes)</span></div>
-      <div class="stat"><span class="stat-n" id="statFolders">0/0</span><span class="stat-l">Folders</span></div>
-      <div class="stat"><span class="stat-n" id="statTotal">0%</span><span class="stat-l">Total</span></div>
-    </div>
+    <div class="stats" id="stats"></div>
 
     <input id="buscar" type="search" placeholder="Buscar nombre o familia…" autocomplete="off">
     <div class="filtros" role="tablist">
@@ -87,16 +83,15 @@
   <dialog id="dlgAdmin" class="wide">
     <form method="dialog" id="adminForm">
       <h2>Administrar lista</h2>
-      <p class="muted">Pega la lista desde Excel o Google Sheets con las columnas:<br>
-        <code>Familia · Nombre · Jefe (sí/no) · Mesa (opcional)</code><br>
-        Si no pones la columna Jefe, el primero de cada familia se toma como jefe.</p>
-      <textarea id="csv" rows="10" placeholder="Familia García	Juan García	sí	5
-Familia García	Ana López	no	5
-Familia Pérez	Luis Pérez	sí	3"></textarea>
+      <p class="muted">Sube tu archivo <code>.csv</code> (columnas <code># · Familia · Nombre · Portaretrato · Jabon · Merch</code>)
+        o pega la lista aquí. Sobres: <b>Oro</b> = los 3 · <b>Feliz</b> = jabón + merch · <b>Merch</b> = sólo merch.
+        Si la columna de familia se llama <b>Hombres</b> → sobre <b>Blanco</b>; si se llama <b>Niños</b> → sobre <b>Niño</b>.</p>
+      <label class="ghost file">📄 Elegir archivo CSV<input type="file" id="csvFile" accept=".csv,.txt,text/csv" hidden></label>
+      <textarea id="csv" rows="8" placeholder="…o pega aquí la tabla desde Excel"></textarea>
       <p id="preview" class="muted"></p>
       <div class="row wrap">
         <button type="button" id="btnImport" class="primary">Reemplazar lista</button>
-        <button type="button" id="btnEjemplo" class="ghost">Cargar ejemplo</button>
+        <button type="button" id="btnAgregar" class="ghost">Agregar a la lista</button>
         <button type="button" id="btnExport" class="ghost">Descargar registro (CSV)</button>
         <button type="button" id="btnReset" class="ghost danger">Desmarcar todas las entregas</button>      </div>
       <h3 class="sub">Nombres en uso</h3>
