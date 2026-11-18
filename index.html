@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f7f3ee">
+  <title>Regalos de la boda</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-row">
+      <div>
+        <h1 id="titulo">Regalos de la boda</h1>
+        <button id="quienSoy" class="link">—</button>
+      </div>
+      <div class="top-actions">
+        <span id="estado" class="estado" title="Conexión"></span>
+        <button id="btnLogout" class="salir">Cerrar sesión</button>
+        <button id="btnAdmin" class="icon" aria-label="Administrar">⚙</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span class="stat-n" id="statSobres">0/0</span><span class="stat-l">Sobres (jefes)</span></div>
+      <div class="stat"><span class="stat-n" id="statFolders">0/0</span><span class="stat-l">Folders</span></div>
+      <div class="stat"><span class="stat-n" id="statTotal">0%</span><span class="stat-l">Total</span></div>
+    </div>
+
+    <input id="buscar" type="search" placeholder="Buscar nombre o familia…" autocomplete="off">
+    <div class="filtros" role="tablist">
+      <button data-f="pend" class="on">Pendientes</button>
+      <button data-f="ent">Entregados</button>
+      <button data-f="todos">Todos</button>
+    </div>
+  </header>
+
+  <div id="demo" class="demo" hidden>
+    <strong>Modo demo:</strong> los datos sólo se guardan en este navegador. Configura Firebase en <code>config.js</code> para compartir la lista entre los 4 teléfonos.
+  </div>
+
+  <main id="lista" class="lista"></main>
+
+  <!-- Acceso -->
+  <dialog id="dlgLogin">
+    <form id="loginForm">
+      <h2>Acceso</h2>
+      <p class="muted">Escribe la contraseña que te compartieron para ver la lista.</p>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="Contraseña" required>
+      <p id="loginError" class="error"></p>
+      <button id="loginBtn" class="primary full">Entrar</button>
+    </form>
+  </dialog>
+
+  <!-- Elegir quién entrega -->
+  <dialog id="dlgQuien">
+    <form method="dialog">
+      <h2>¿Quién eres?</h2>
+      <p class="muted">Se registrará tu nombre en cada entrega.</p>
+      <div id="entregadores" class="choices"></div>
+      <input id="otroNombre" placeholder="Otro nombre…">
+      <button id="okOtro" class="primary" value="otro">Usar este nombre</button>
+    </form>
+  </dialog>
+
+  <!-- Confirmar entrega -->
+  <dialog id="dlgEntregar">
+    <form method="dialog">
+      <p class="muted" id="entFamilia"></p>
+      <h2 id="entNombre"></h2>
+      <p id="entTipo" class="tipo"></p>
+      <label class="field">
+        Lo recibió
+        <input id="entRecibio" placeholder="Nombre de quien lo recibió">
+      </label>
+      <div class="row">
+        <button value="cancel" class="ghost">Cancelar</button>
+        <button value="ok" class="primary">Entregado ✓</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Admin -->
+  <dialog id="dlgAdmin" class="wide">
+    <form method="dialog" id="adminForm">
+      <h2>Administrar lista</h2>
+      <p class="muted">Pega la lista desde Excel o Google Sheets con las columnas:<br>
+        <code>Familia · Nombre · Jefe (sí/no) · Mesa (opcional)</code><br>
+        Si no pones la columna Jefe, el primero de cada familia se toma como jefe.</p>
+      <textarea id="csv" rows="10" placeholder="Familia García	Juan García	sí	5
+Familia García	Ana López	no	5
+Familia Pérez	Luis Pérez	sí	3"></textarea>
+      <p id="preview" class="muted"></p>
+      <div class="row wrap">
+        <button type="button" id="btnImport" class="primary">Reemplazar lista</button>
+        <button type="button" id="btnEjemplo" class="ghost">Cargar ejemplo</button>
+        <button type="button" id="btnExport" class="ghost">Descargar registro (CSV)</button>
+        <button type="button" id="btnReset" class="ghost danger">Desmarcar todas las entregas</button>      </div>
+      <div class="row"><button value="close" class="ghost">Cerrar</button></div>
+    </form>
+  </dialog>
+
+  <!-- Confirmaciones / avisos -->
+  <dialog id="dlgAsk">
+    <form method="dialog">
+      <p id="askMsg" class="ask-msg"></p>
+      <input id="askInput" type="password" inputmode="numeric" autocomplete="off" hidden>
+      <div class="row">
+        <button id="askNo" value="cancel" class="ghost">Cancelar</button>
+        <button id="askOk" value="ok" class="primary">Aceptar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
